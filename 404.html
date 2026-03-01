@@ -1,27 +1,200 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404</title>
-    <script>
-        var redirects = {
-            "/fichas-nutricionais/sete-mangas-tinto.pdf": "https://ttcoelhoo.github.io/fichas-nutricionais/sete-mangas-tinto.html",
-            "/fichas-nutricionais/sete-mangas-branco.pdf": "https://ttcoelhoo.github.io/fichas-nutricionais/sete-mangas-branco.html",
-            "/fichas-nutricionais/gadarum-tinto.pdf": "https://ttcoelhoo.github.io/fichas-nutricionais/gadarum-tinto.html",
-            "/fichas-nutricionais/gadarum-rose.pdf": "https://ttcoelhoo.github.io/fichas-nutricionais/gadarum-rose.html",
-            "/fichas-nutricionais/gadarum-branco.pdf": "https://ttcoelhoo.github.io/fichas-nutricionais/gadarum-branco.html"
-        };
-
-        var path = window.location.pathname;
-        if (redirects[path]) {
-            window.location.replace(redirects[path]);
+    <title>Ficha Nutricional</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f8f8;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
         }
-    </script>
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        h2 {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        .ingredients {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+        .loading {
+            padding: 40px;
+            color: #666;
+        }
+        .error {
+            color: #a94442;
+            padding: 20px;
+        }
+        /* Wine type color themes */
+        .tinto h1 { color: #a94442; }
+        .tinto th { background-color: #d9534f; color: white; }
 
+        .branco h1 { color: #e9a935; }
+        .branco th { background-color: #fcffe2; color: #e9a935; }
+
+        .rose h1 { color: #a94442; }
+        .rose th { background-color: #f2dede; color: #a94442; }
+    </style>
 </head>
 <body>
-<h1>Page Not Found</h1>
-<p>If you are not redirected, <a href="https://ttcoelhoo.github.io/fichas-nutricionais/sete-mangas-tinto.html">click here</a>.</p>
+    <div class="container" id="content">
+        <div class="loading">A carregar...</div>
+    </div>
+
+    <script>
+        // IMPORTANT: Replace this URL with your published Google Sheets CSV URL
+        // Go to: File → Share → Publish to web → Select CSV format → Copy the URL
+        const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT51tuEa60clt6KwDeVnday-HukzRNUqfkYYLnO_a59Vz7DbaHsXyCTHyu0ze446Ub5fhWim_THlVZQ/pub?gid=456463951&single=true&output=csv";
+
+        // Extract wine slug from URL path
+        // Handles: /fichas-nutricionais/sete-mangas-tinto.pdf
+        const path = window.location.pathname;
+        const match = path.match(/\/fichas-nutricionais\/(.+)\.pdf$/);
+
+        if (!match) {
+            // Not a nutrition page request - show 404
+            document.getElementById("content").innerHTML = `
+                <h1>Página Não Encontrada</h1>
+                <p>A página que procura não existe.</p>
+            `;
+        } else {
+            const slug = match[1];
+
+            fetch(SHEET_URL)
+                .then(response => {
+                    if (!response.ok) throw new Error("Failed to fetch data");
+                    return response.text();
+                })
+                .then(csv => {
+                    // Parse CSV
+                    const lines = csv.trim().split("\n");
+                    const headers = parseCSVLine(lines[0]);
+
+                    // Find the wine row
+                    let wineData = null;
+                    for (let i = 1; i < lines.length; i++) {
+                        const row = parseCSVLine(lines[i]);
+                        if (row[0] && row[0].trim() === slug) {
+                            wineData = {};
+                            headers.forEach((header, idx) => {
+                                wineData[header.trim()] = row[idx] ? row[idx].trim() : "";
+                            });
+                            break;
+                        }
+                    }
+
+                    if (!wineData) {
+                        document.getElementById("content").innerHTML = `
+                            <div class="error">
+                                <h1>Vinho Não Encontrado</h1>
+                                <p>Não foi possível encontrar informação para: ${slug}</p>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    // Determine wine type for styling
+                    const tipo = wineData.tipo || "tinto";
+
+                    // Render the nutrition table
+                    document.getElementById("content").className = `container ${tipo}`;
+                    document.getElementById("content").innerHTML = `
+                        <h1>Ficha Nutricional</h1>
+                        <h2>${wineData.nome || slug}</h2>
+                        <table>
+                            <tr>
+                                <th>Declaração Nutricional</th>
+                                <th>Por 100 mL</th>
+                            </tr>
+                            <tr>
+                                <td>Energia</td>
+                                <td>${wineData.energia || "-"}</td>
+                            </tr>
+                            <tr>
+                                <td>Lípidos</td>
+                                <td>${wineData.lipidos || "0g"}</td>
+                            </tr>
+                            <tr>
+                                <td>dos quais saturados</td>
+                                <td>${wineData.saturados || "0g"}</td>
+                            </tr>
+                            <tr>
+                                <td>Hidratos de Carbono</td>
+                                <td>${wineData.hidratos || "0g"}</td>
+                            </tr>
+                            <tr>
+                                <td>dos quais açúcares</td>
+                                <td>${wineData.acucares || "0g"}</td>
+                            </tr>
+                            <tr>
+                                <td>Proteínas</td>
+                                <td>${wineData.proteinas || "0g"}</td>
+                            </tr>
+                            <tr>
+                                <td>Sal</td>
+                                <td>${wineData.sal || "0g"}</td>
+                            </tr>
+                        </table>
+                        <p class="ingredients">INGREDIENTES: ${wineData.ingredientes || "Uvas, conservante e anti-oxidante <strong>(sulfitos)</strong>"}</p>
+                    `;
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    document.getElementById("content").innerHTML = `
+                        <div class="error">
+                            <h1>Erro</h1>
+                            <p>Não foi possível carregar os dados. Por favor tente novamente.</p>
+                        </div>
+                    `;
+                });
+        }
+
+        // Simple CSV line parser (handles quoted fields)
+        function parseCSVLine(line) {
+            const result = [];
+            let current = "";
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === "," && !inQuotes) {
+                    result.push(current);
+                    current = "";
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current);
+            return result;
+        }
+    </script>
 </body>
 </html>
